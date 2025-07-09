@@ -1,0 +1,9 @@
+[project]
+name = "newton-clips"
+version = "0.1.0"
+description = "Clips for newton-physics"
+requires-python = ">=3.9"
+dependencies = [
+    "newton-physics>=0.1.1a1",
+    "warp-lang>=1.8.0",
+]
