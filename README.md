@@ -1,2 +1,3 @@
 # newton-clips
-Clips for newton-physics
+
+Clips from newton-physics simulation

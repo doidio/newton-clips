@@ -1,7 +1,7 @@
 [project]
 name = "newton-clips"
 version = "0.1.0"
-description = "Clips for newton-physics"
+description = "Clips from newton-physics simulation"
 requires-python = ">=3.9"
 dependencies = [
     "newton-physics>=0.1.1a1",
