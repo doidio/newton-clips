@@ -1,12 +1,15 @@
 import hashlib
 import json
 import os
+import uuid
 from pathlib import Path
 
 import newton
 import numpy as np
 import warp as wp
+from newton import Model
 from newton.core.model import Vec3, Quat
+from trimesh import Trimesh, geometry
 
 
 class ModelBuilder(newton.ModelBuilder):
@@ -19,24 +22,14 @@ class ModelBuilder(newton.ModelBuilder):
             raise RuntimeError('Unset ModelBuilder.SAVE_DIR')
 
         self._save_dir = Path(ModelBuilder.SAVE_DIR)
-        self._save_json = self._save_dir / 'save.json'
+        self._save_json = self._save_dir / 'model.json'
         self._cache_dir = self._save_dir / '.cache'
 
-        if self._save_json.exists():
-            self.save_dict = json.loads(self._save_json.read_text('utf-8'))
-            assert isinstance(self.save_dict['Model'], dict)
-            assert isinstance(self.save_dict['Model']['ShapeMesh'], list)
-            assert isinstance(self.save_dict['Model']['SoftMesh'], list)
-            assert isinstance(self.save_dict['State'], list)
-        else:
-            self.save_dict = {
-                'Model': {
-                    'ShapeMesh': [],
-                    'SoftMesh': [],
-                },
-                'State': [],
-            }
-            self.save()
+        self.save_dict = {
+            'Uuid': uuid.uuid4().hex,
+            'ShapeMesh': [],
+            'SoftMesh': [],
+        }
 
     def save(self):
         os.makedirs(self._save_json.parent, exist_ok=True)
@@ -101,17 +94,34 @@ class ModelBuilder(newton.ModelBuilder):
         if self.shape_geo_type[-1] != newton.GEO_MESH:
             raise RuntimeError('Only support GEO_MESH')
 
-        self.save_dict['Model']['ShapeMesh'].append({
-            'body': self.shape_body[-1],
-            'transform': tuple(self.shape_transform[-1]),
-            'scale': tuple(self.shape_geo_scale[-1]),
-            'vertices': self.cache(np.array(
-                self.shape_geo_src[-1].vertices).flatten().astype(np.float32).tobytes()),
-            'indices': self.cache(np.array(
-                self.shape_geo_src[-1].indices).flatten().astype(np.int32).tobytes()),
-            'is_solid': self.shape_geo_src[-1].is_solid,
+        mesh = Trimesh(
+            np.array(self.shape_geo_src[-1].vertices).reshape(-1, 3),
+            np.array(self.shape_geo_src[-1].indices).reshape(-1, 3),
+        )
+        mesh.fix_normals()
+
+        vertex_normals = geometry.weighted_vertex_normals(
+            vertex_count=len(mesh.vertices),
+            faces=mesh.faces,
+            face_normals=mesh.face_normals,
+            face_angles=mesh.face_angles,
+        )
+
+        self.save_dict['ShapeMesh'].append({
+            'Body': self.shape_body[-1],
+            'Transform': tuple(self.shape_transform[-1]),
+            'Scale': tuple(self.shape_geo_scale[-1]),
+            'Vertices': self.cache(mesh.vertices.flatten().astype(np.float32).tobytes()),
+            'Indices': self.cache(mesh.faces.flatten().astype(np.int32).tobytes()),
+            'VertexNormals': self.cache(vertex_normals.flatten().astype(np.float32).tobytes()),
+            'VertexUVs': '',
         })
-        self.save()
+
+    def update_shape_mesh(self, i: int = -1, VertexUVs: np.ndarray[(-1, 2), np.float32] | None = None):
+        if VertexUVs is not None:
+            self.save_dict['ShapeMesh'][i].update({
+                'VertexUVs': self.cache(np.array(VertexUVs, np.float32).reshape(-1, 2).flatten().tobytes()),
+            })
 
     def add_soft_mesh(
             self,
@@ -131,7 +141,7 @@ class ModelBuilder(newton.ModelBuilder):
             tri_drag: float = newton.ModelBuilder.default_tri_drag,
             tri_lift: float = newton.ModelBuilder.default_tri_lift,
     ):
-        init = len(self.particle_q)
+        begin = len(self.particle_q)
 
         super().add_soft_mesh(
             pos=pos,
@@ -151,19 +161,41 @@ class ModelBuilder(newton.ModelBuilder):
             tri_lift=tri_lift,
         )
 
-        count = len(self.particle_q) - init
+        count = len(self.particle_q) - begin
 
         if count <= 0:
-            raise RuntimeError(f'Invalid init {init} count {count}')
+            raise RuntimeError(f'Invalid begin {begin} count {count}')
 
-        a, b = init, init + count
+        a, b = begin, begin + count
 
-        self.save_dict['Model']['ShapeMesh'].append({
-            'init': init,
-            'count': count,
-            'vertices': self.cache(np.array(
-                self.particle_q)[a:b].flatten().astype(np.float32).tobytes()),
-            'indices': self.cache(np.array(
-                self.tri_indices)[a:b].flatten().astype(np.int32).tobytes()),
+        mesh = Trimesh(
+            np.array(self.particle_q).reshape(-1, 3)[a:b],
+            np.array(self.tri_indices).reshape(-1, 3)[a:b],
+        )
+        mesh.fix_normals()
+
+        vertex_normals = geometry.weighted_vertex_normals(
+            vertex_count=len(mesh.vertices),
+            faces=mesh.faces,
+            face_normals=mesh.face_normals,
+            face_angles=mesh.face_angles,
+        )
+
+        self.save_dict['SoftMesh'].append({
+            'Begin': begin,
+            'Count': count,
+            'Vertices': self.cache(mesh.vertices.flatten().astype(np.float32).tobytes()),
+            'Indices': self.cache(mesh.faces.flatten().astype(np.int32).tobytes()),
+            'VertexNormals': self.cache(vertex_normals.flatten().astype(np.float32).tobytes()),
+            'VertexUVs': '',
         })
+
+    def update_soft_mesh(self, i: int = -1, VertexUVs: np.ndarray[(-1, 2), np.float32] | None = None):
+        if VertexUVs is not None:
+            self.save_dict['SoftMesh'][i].update({
+                'VertexUVs': self.cache(np.array(VertexUVs, np.float32).reshape(-1, 2).flatten().tobytes()),
+            })
+
+    def finalize(self, device=None, requires_grad=False) -> Model:
         self.save()
+        return super().finalize(device, requires_grad)

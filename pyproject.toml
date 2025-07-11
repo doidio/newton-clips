@@ -5,5 +5,7 @@ description = "Clips from newton-physics simulation"
 requires-python = ">=3.9"
 dependencies = [
     "newton-physics>=0.1.1a1",
+    "scipy>=1.13.1",
+    "trimesh>=4.7.0",
     "warp-lang>=1.8.0",
 ]
