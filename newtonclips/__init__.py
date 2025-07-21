@@ -67,6 +67,7 @@ class ModelBuilder(newton.ModelBuilder):
     ):
         rt = super().add_shape_mesh(
             body=body,
+            xform=xform,
             mesh=mesh,
             scale=scale,
             cfg=cfg,
@@ -77,7 +78,7 @@ class ModelBuilder(newton.ModelBuilder):
         indices = np.array(self.shape_geo_src[-1].indices).reshape(-1, 3)
 
         self._model_dict['ShapeMesh'].append({
-            'Name': key,
+            'Name': str(key) if key is not None else '',
             'Body': self.shape_body[-1],
             'Transform': tuple(self.shape_transform[-1]),
             'Scale': tuple(self.shape_geo_scale[-1]),
@@ -120,11 +121,12 @@ class ModelBuilder(newton.ModelBuilder):
             cfg=cfg,
             key=key,
         )
+        print(self.shape_geo_scale[-1], self.add_shape_sphere)
 
         mesh = trimesh.creation.icosphere(radius=radius)
 
         self._model_dict['ShapeMesh'].append({
-            'Name': key,
+            'Name': str(key) if key is not None else '',
             'Body': self.shape_body[-1],
             'Transform': tuple(self.shape_transform[-1]),
             'Scale': tuple(self.shape_geo_scale[-1]),
@@ -154,10 +156,14 @@ class ModelBuilder(newton.ModelBuilder):
             key=key,
         )
 
-        mesh = trimesh.creation.box(extents=np.array([hx, hy, hz]))
+        scale = (hx, hy, hz)
+        self.shape_geo_scale[-1] = scale
+
+        # BUG: newton box size may be wrong
+        mesh = trimesh.creation.box(extents=np.array([2.0, 2.0, 2.0]))
 
         self._model_dict['ShapeMesh'].append({
-            'Name': key,
+            'Name': str(key) if key is not None else '',
             'Body': self.shape_body[-1],
             'Transform': tuple(self.shape_transform[-1]),
             'Scale': tuple(self.shape_geo_scale[-1]),
@@ -186,11 +192,12 @@ class ModelBuilder(newton.ModelBuilder):
             cfg=cfg,
             key=key,
         )
+        print(self.shape_geo_scale[-1], self.add_shape_capsule)
 
         mesh = trimesh.creation.capsule(radius=radius, height=half_height * 2)
 
         self._model_dict['ShapeMesh'].append({
-            'Name': key,
+            'Name': str(key) if key is not None else '',
             'Body': self.shape_body[-1],
             'Transform': tuple(self.shape_transform[-1]),
             'Scale': tuple(self.shape_geo_scale[-1]),
@@ -219,11 +226,12 @@ class ModelBuilder(newton.ModelBuilder):
             cfg=cfg,
             key=key,
         )
+        print(self.shape_geo_scale[-1], self.add_shape_cone)
 
         mesh = trimesh.creation.cone(radius=radius, height=half_height * 2)
 
         self._model_dict['ShapeMesh'].append({
-            'Name': key,
+            'Name': str(key) if key is not None else '',
             'Body': self.shape_body[-1],
             'Transform': tuple(self.shape_transform[-1]),
             'Scale': tuple(self.shape_geo_scale[-1]),
@@ -252,11 +260,12 @@ class ModelBuilder(newton.ModelBuilder):
             cfg=cfg,
             key=key,
         )
+        print(self.shape_geo_scale[-1], self.add_shape_cylinder)
 
         mesh = trimesh.creation.cylinder(radius=radius, height=half_height * 2)
 
         self._model_dict['ShapeMesh'].append({
-            'Name': key,
+            'Name': str(key) if key is not None else '',
             'Body': self.shape_body[-1],
             'Transform': tuple(self.shape_transform[-1]),
             'Scale': tuple(self.shape_geo_scale[-1]),
@@ -294,10 +303,10 @@ class ModelBuilder(newton.ModelBuilder):
         self.shape_geo_scale[-1] = scale
 
         vertices = np.array([
-            [-0.5, -0.5, 0],
-            [+0.5, -0.5, 0],
-            [+0.5, +0.5, 0],
-            [-0.5, +0.5, 0],
+            [-1.0, -1.0, 0.0],
+            [+1.0, -1.0, 0.0],
+            [+1.0, +1.0, 0.0],
+            [-1.0, +1.0, 0.0],
         ])
 
         faces = np.array([
@@ -306,7 +315,7 @@ class ModelBuilder(newton.ModelBuilder):
         ])
 
         self._model_dict['ShapeMesh'].append({
-            'Name': key,
+            'Name': str(key) if key is not None else '',
             'Body': self.shape_body[-1],
             'Transform': tuple(self.shape_transform[-1]),
             'Scale': tuple(self.shape_geo_scale[-1]),
@@ -339,6 +348,7 @@ class ModelBuilder(newton.ModelBuilder):
             tri_kd: float = 10.0,
             tri_drag: float = 0.0,
             tri_lift: float = 0.0,
+            key: str | None = None,
     ):
         warnings.warn(f'soft_mesh has poor effect, consider using cloth_mesh instead')
 
@@ -373,6 +383,7 @@ class ModelBuilder(newton.ModelBuilder):
         indices = np.array(self.tri_indices).reshape(-1, 3)[tri_begin:tri_begin + tri_count] - vtx_begin
 
         self._model_dict['SoftMesh'].append({
+            'Name': str(key) if key is not None else '',
             'Begin': vtx_begin,
             'Count': vtx_count,
             'Vertices': self.cache(vertices.flatten().astype(np.float32).tobytes()),
@@ -403,6 +414,7 @@ class ModelBuilder(newton.ModelBuilder):
             spring_ke: float = 100.0,
             spring_kd: float = 0.0,
             particle_radius: float = 0.1,
+            key: str | None = None,
     ):
         vtx_begin = len(self.particle_q)
         tri_begin = len(self.tri_indices)
@@ -440,6 +452,7 @@ class ModelBuilder(newton.ModelBuilder):
         indices = np.array(self.tri_indices).reshape(-1, 3)[tri_begin:tri_begin + tri_count] - vtx_begin
 
         self._model_dict['SoftMesh'].append({
+            'Name': str(key) if key is not None else '',
             'Begin': vtx_begin,
             'Count': vtx_count,
             'Vertices': self.cache(vertices.flatten().astype(np.float32).tobytes()),
