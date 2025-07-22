@@ -4,12 +4,12 @@ version = "0.1.0"
 description = "Clips from newton-physics simulation"
 requires-python = ">=3.9"
 dependencies = [
-    "warp-lang[extras]>=1.9.0",
-    "mujoco>=3.3.5",
-    "mujoco-warp",
-    "newton-physics>=0.1.1a1",
+    "warp-lang[extras]",
+    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp",
+    "newton-physics @ git+https://github.com/newton-physics/newton",
     "scipy>=1.13.1",
     "trimesh>=4.7.1",
+    "mujoco",
 ]
 
 [tool.uv.sources]

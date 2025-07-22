@@ -12,7 +12,7 @@ import trimesh.primitives
 import warp as wp
 from newton import Model, Mesh, State, SDF
 from newton.core.types import Vec3, Quat, Transform, AxisType, Axis, Vec4
-from trimesh import Trimesh, geometry
+from trimesh.transformations import rotation_matrix
 
 
 class ModelBuilder(newton.ModelBuilder):
@@ -103,7 +103,7 @@ class ModelBuilder(newton.ModelBuilder):
             cfg=cfg,
             key=key,
         )
-        warnings.warn(f'Not implemented {self.add_shape_sdf}')
+        warnings.warn(f'SDF dose not support collision')
         return rt
 
     def add_shape_sphere(
@@ -121,15 +121,14 @@ class ModelBuilder(newton.ModelBuilder):
             cfg=cfg,
             key=key,
         )
-        print(self.shape_geo_scale[-1], self.add_shape_sphere)
 
-        mesh = trimesh.creation.icosphere(radius=radius)
+        mesh = trimesh.creation.icosphere(radius=radius).subdivide_to_size(0.5)
 
         self._model_dict['ShapeMesh'].append({
             'Name': str(key) if key is not None else '',
             'Body': self.shape_body[-1],
             'Transform': tuple(self.shape_transform[-1]),
-            'Scale': tuple(self.shape_geo_scale[-1]),
+            'Scale': (1.0, 1.0, 1.0),
             'Vertices': self.cache(mesh.vertices.flatten().astype(np.float32).tobytes()),
             'Indices': self.cache(mesh.faces.flatten().astype(np.int32).tobytes()),
         })
@@ -156,17 +155,13 @@ class ModelBuilder(newton.ModelBuilder):
             key=key,
         )
 
-        scale = (hx, hy, hz)
-        self.shape_geo_scale[-1] = scale
-
-        # BUG: newton box size may be wrong
-        mesh = trimesh.creation.box(extents=np.array([2.0, 2.0, 2.0]))
+        mesh = trimesh.creation.box(extents=np.array([hx * 2, hy * 2, hz * 2])).subdivide_to_size(0.5)
 
         self._model_dict['ShapeMesh'].append({
             'Name': str(key) if key is not None else '',
             'Body': self.shape_body[-1],
             'Transform': tuple(self.shape_transform[-1]),
-            'Scale': tuple(self.shape_geo_scale[-1]),
+            'Scale': (1.0, 1.0, 1.0),
             'Vertices': self.cache(mesh.vertices.flatten().astype(np.float32).tobytes()),
             'Indices': self.cache(mesh.faces.flatten().astype(np.int32).tobytes()),
         })
@@ -192,15 +187,15 @@ class ModelBuilder(newton.ModelBuilder):
             cfg=cfg,
             key=key,
         )
-        print(self.shape_geo_scale[-1], self.add_shape_capsule)
 
-        mesh = trimesh.creation.capsule(radius=radius, height=half_height * 2)
+        mesh = trimesh.creation.capsule(radius=radius, height=half_height * 2).subdivide_to_size(0.5)
+        mesh = mesh.apply_transform(rotation_matrix(np.deg2rad(90), [0, 0, 1]))
 
         self._model_dict['ShapeMesh'].append({
             'Name': str(key) if key is not None else '',
             'Body': self.shape_body[-1],
             'Transform': tuple(self.shape_transform[-1]),
-            'Scale': tuple(self.shape_geo_scale[-1]),
+            'Scale': (1.0, 1.0, 1.0),
             'Vertices': self.cache(mesh.vertices.flatten().astype(np.float32).tobytes()),
             'Indices': self.cache(mesh.faces.flatten().astype(np.int32).tobytes()),
         })
@@ -217,7 +212,8 @@ class ModelBuilder(newton.ModelBuilder):
             cfg: newton.ModelBuilder.ShapeConfig | None = None,
             key: str | None = None,
     ) -> int:
-        rt = super().add_shape_cone(
+        warnings.warn('Not implemented because Newton does not support collision for Cone')
+        return super().add_shape_cone(
             body=body,
             xform=xform,
             radius=radius,
@@ -226,20 +222,6 @@ class ModelBuilder(newton.ModelBuilder):
             cfg=cfg,
             key=key,
         )
-        print(self.shape_geo_scale[-1], self.add_shape_cone)
-
-        mesh = trimesh.creation.cone(radius=radius, height=half_height * 2)
-
-        self._model_dict['ShapeMesh'].append({
-            'Name': str(key) if key is not None else '',
-            'Body': self.shape_body[-1],
-            'Transform': tuple(self.shape_transform[-1]),
-            'Scale': tuple(self.shape_geo_scale[-1]),
-            'Vertices': self.cache(mesh.vertices.flatten().astype(np.float32).tobytes()),
-            'Indices': self.cache(mesh.faces.flatten().astype(np.int32).tobytes()),
-        })
-
-        return rt
 
     def add_shape_cylinder(
             self,
@@ -251,7 +233,8 @@ class ModelBuilder(newton.ModelBuilder):
             cfg: newton.ModelBuilder.ShapeConfig | None = None,
             key: str | None = None,
     ) -> int:
-        rt = super().add_shape_cylinder(
+        warnings.warn('Not implemented because Newton does not support collision for Cylinder')
+        return super().add_shape_cylinder(
             body=body,
             xform=xform,
             radius=radius,
@@ -260,20 +243,6 @@ class ModelBuilder(newton.ModelBuilder):
             cfg=cfg,
             key=key,
         )
-        print(self.shape_geo_scale[-1], self.add_shape_cylinder)
-
-        mesh = trimesh.creation.cylinder(radius=radius, height=half_height * 2)
-
-        self._model_dict['ShapeMesh'].append({
-            'Name': str(key) if key is not None else '',
-            'Body': self.shape_body[-1],
-            'Transform': tuple(self.shape_transform[-1]),
-            'Scale': tuple(self.shape_geo_scale[-1]),
-            'Vertices': self.cache(mesh.vertices.flatten().astype(np.float32).tobytes()),
-            'Indices': self.cache(mesh.faces.flatten().astype(np.int32).tobytes()),
-        })
-
-        return rt
 
     def add_shape_plane(
             self,
@@ -298,15 +267,11 @@ class ModelBuilder(newton.ModelBuilder):
         width = width if width > 0 else 40000.0
         length = length if length > 0 else 40000.0
 
-        # BUG: newton set plane scale_z to zero, which is not renderable
-        scale = (width, length, 1.0)
-        self.shape_geo_scale[-1] = scale
-
         vertices = np.array([
-            [-1.0, -1.0, 0.0],
-            [+1.0, -1.0, 0.0],
-            [+1.0, +1.0, 0.0],
-            [-1.0, +1.0, 0.0],
+            [-width, -length, 0.0],
+            [+width, -length, 0.0],
+            [+width, +length, 0.0],
+            [-width, +length, 0.0],
         ])
 
         faces = np.array([
@@ -318,18 +283,12 @@ class ModelBuilder(newton.ModelBuilder):
             'Name': str(key) if key is not None else '',
             'Body': self.shape_body[-1],
             'Transform': tuple(self.shape_transform[-1]),
-            'Scale': tuple(self.shape_geo_scale[-1]),
+            'Scale': (1.0, 1.0, 1.0),
             'Vertices': self.cache(vertices.flatten().astype(np.float32).tobytes()),
             'Indices': self.cache(faces.flatten().astype(np.int32).tobytes()),
         })
 
         return rt
-
-    def update_shape_mesh(self, i: int = -1, VertexUVs: np.ndarray[(-1, 2), np.float32] | None = None):
-        if VertexUVs is not None:
-            self._model_dict['ShapeMesh'][i].update({
-                'VertexUVs': self.cache(np.array(VertexUVs, np.float32).reshape(-1, 2).flatten().tobytes()),
-            })
 
     def add_soft_mesh(
             self,
@@ -350,8 +309,6 @@ class ModelBuilder(newton.ModelBuilder):
             tri_lift: float = 0.0,
             key: str | None = None,
     ):
-        warnings.warn(f'soft_mesh has poor effect, consider using cloth_mesh instead')
-
         vtx_begin = len(self.particle_q)
         tri_begin = len(self.tri_indices)
 
@@ -366,6 +323,79 @@ class ModelBuilder(newton.ModelBuilder):
             k_mu=k_mu,
             k_lambda=k_lambda,
             k_damp=k_damp,
+            tri_ke=tri_ke,
+            tri_ka=tri_ka,
+            tri_kd=tri_kd,
+            tri_drag=tri_drag,
+            tri_lift=tri_lift,
+        )
+
+        vtx_count = len(self.particle_q) - vtx_begin
+        tri_count = len(self.tri_indices) - tri_begin
+
+        if vtx_count <= 0:
+            raise RuntimeError(f'Invalid begin {vtx_begin} count {vtx_count}')
+
+        vertices = np.array(self.particle_q).reshape(-1, 3)[vtx_begin:vtx_begin + vtx_count]
+        indices = np.array(self.tri_indices).reshape(-1, 3)[tri_begin:tri_begin + tri_count] - vtx_begin
+
+        self._model_dict['SoftMesh'].append({
+            'Name': str(key) if key is not None else '',
+            'Begin': vtx_begin,
+            'Count': vtx_count,
+            'Vertices': self.cache(vertices.flatten().astype(np.float32).tobytes()),
+            'Indices': self.cache(indices.flatten().astype(np.int32).tobytes()),
+        })
+
+        return rt
+
+    def add_soft_grid(
+            self,
+            pos: Vec3,
+            rot: Quat,
+            vel: Vec3,
+            dim_x: int,
+            dim_y: int,
+            dim_z: int,
+            cell_x: float,
+            cell_y: float,
+            cell_z: float,
+            density: float,
+            k_mu: float,
+            k_lambda: float,
+            k_damp: float,
+            fix_left: bool = False,
+            fix_right: bool = False,
+            fix_top: bool = False,
+            fix_bottom: bool = False,
+            tri_ke: float | None = None,
+            tri_ka: float | None = None,
+            tri_kd: float | None = None,
+            tri_drag: float | None = None,
+            tri_lift: float | None = None,
+            key: str | None = None,
+    ):
+        vtx_begin = len(self.particle_q)
+        tri_begin = len(self.tri_indices)
+
+        rt = super().add_soft_grid(
+            pos=pos,
+            rot=rot,
+            vel=vel,
+            dim_x=dim_x,
+            dim_y=dim_y,
+            dim_z=dim_z,
+            cell_x=cell_x,
+            cell_y=cell_y,
+            cell_z=cell_z,
+            density=density,
+            k_mu=k_mu,
+            k_lambda=k_lambda,
+            k_damp=k_damp,
+            fix_left=fix_left,
+            fix_right=fix_right,
+            fix_top=fix_top,
+            fix_bottom=fix_bottom,
             tri_ke=tri_ke,
             tri_ka=tri_ka,
             tri_kd=tri_kd,
@@ -462,8 +492,8 @@ class ModelBuilder(newton.ModelBuilder):
         return rt
 
     def finalize(self, device=None, requires_grad=False) -> Model:
-        json_str = json.dumps(self._model_dict, sort_keys=True, ensure_ascii=False)
-        self._model_dict['Sha1'] = hashlib.sha1(json_str.encode('utf-8')).hexdigest()
+        # json_str = json.dumps(self._model_dict, sort_keys=True, ensure_ascii=False)
+        # self._model_dict['Sha1'] = hashlib.sha1(json_str.encode('utf-8')).hexdigest()
         self._model_dict['Sha1'] = uuid.uuid4().hex
         os.makedirs(self._model_json.parent, exist_ok=True)
         self._model_json.write_text(json.dumps(self._model_dict, indent=4, ensure_ascii=False), 'utf-8')
