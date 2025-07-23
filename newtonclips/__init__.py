@@ -491,6 +491,71 @@ class ModelBuilder(newton.ModelBuilder):
 
         return rt
 
+    def add_cloth_grid(
+            self,
+            pos: Vec3 = wp.vec3(0.0, 0.0, 0.0),
+            rot: Quat = wp.quat(0.0, 0.0, 0.0, 1.0),
+            scale: float = 1.0,
+            vel: Vec3 = wp.vec3(0.0, 0.0, 0.0),
+            dim_x: int = 15,
+            dim_y: int = 15,
+            cell_x: float = 0.1,
+            cell_y: float = 0.1,
+            mass: float = 0.1,
+            reverse_winding: bool = False,
+            fix_left: bool = False,
+            fix_right: bool = False,
+            fix_top: bool = False,
+            fix_bottom: bool = False,
+            tri_ke: float | None = 10.0,
+            tri_ka: float | None = 10.0,
+            tri_kd: float | None = 1.0,
+            tri_drag: float | None = 0.0,
+            tri_lift: float | None = 0.0,
+            edge_ke: float | None = 10.0,
+            edge_kd: float | None = 0.0,
+            add_springs: bool = False,
+            spring_ke: float | None = 100.0,
+            spring_kd: float | None = 0.0,
+            particle_radius: float | None = 0.1,
+            key: str | None = None,
+    ):
+        center_x = dim_x * cell_x * 0.5
+        center_y = dim_y * cell_y * 0.5
+
+        pos = wp.vec3(pos[0] - center_x, pos[1] - center_y, pos[2])
+
+        rt = super().add_cloth_grid(
+            pos=pos,
+            rot=rot,
+            vel=vel,
+            dim_x=dim_x,
+            dim_y=dim_y,
+            cell_x=cell_x,
+            cell_y=cell_y,
+            mass=mass,
+            reverse_winding=reverse_winding,
+            fix_left=fix_left,
+            fix_right=fix_right,
+            fix_top=fix_top,
+            fix_bottom=fix_bottom,
+            tri_ke=tri_ke,
+            tri_ka=tri_ka,
+            tri_kd=tri_kd,
+            tri_drag=tri_drag,
+            tri_lift=tri_lift,
+            edge_ke=edge_ke,
+            edge_kd=edge_kd,
+            add_springs=add_springs,
+            spring_ke=spring_ke,
+            spring_kd=spring_kd,
+            particle_radius=particle_radius,
+        )
+
+        self._model_dict['SoftMesh'][-1]['Name'] = str(key) if key is not None else ''
+
+        return rt
+
     def finalize(self, device=None, requires_grad=False) -> Model:
         # json_str = json.dumps(self._model_dict, sort_keys=True, ensure_ascii=False)
         # self._model_dict['Sha1'] = hashlib.sha1(json_str.encode('utf-8')).hexdigest()
@@ -526,6 +591,9 @@ class ModelBuilder(newton.ModelBuilder):
         self._frames.append(frame)
 
     def end_frame(self):
+        """"""
+
+    def save(self):
         """"""
 
 
