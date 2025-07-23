@@ -1,6 +1,6 @@
 import numpy as np
 
-import renderer
+import newtonclips.renderer as renderer
 
 
 def tri_surface_from_tet(tetrahedrons: np.ndarray) -> np.ndarray:
