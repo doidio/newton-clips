@@ -5,6 +5,7 @@ import shutil
 import uuid
 import warnings
 from pathlib import Path
+
 import newton
 import numpy as np
 import trimesh
@@ -27,6 +28,7 @@ class SimRenderer:
             'Scale': scaling,
             'ShapeMesh': [],
             'SoftMesh': [],
+            'GranularFluid': [],
         }
 
         self._frames = []
@@ -34,93 +36,119 @@ class SimRenderer:
         self.sim_time = 0.0
         self.delta_time = 0.0
 
-        a_body = model.shape_body.numpy()
-        a_type = model.shape_geo.type.numpy()
-        a_scale = model.shape_geo.scale.numpy()
-        a_thickness = model.shape_geo.thickness.numpy()
-        a_is_solid = model.shape_geo.is_solid.numpy()
-        a_transform = model.shape_transform.numpy()
-        a_flags = model.shape_flags.numpy()
+        if model.shape_count > 0:
+            a_body = model.shape_body.numpy()
+            a_type = model.shape_geo.type.numpy()
+            a_scale = model.shape_geo.scale.numpy()
+            a_thickness = model.shape_geo.thickness.numpy()
+            a_is_solid = model.shape_geo.is_solid.numpy()
+            a_transform = model.shape_transform.numpy()
+            a_flags = model.shape_flags.numpy()
 
-        for i in range(model.shape_count):
-            key, src = model.shape_key[i], model.shape_geo_src[i]
-            body, ty, scale, th, is_solid, transform, flag = (
-                a_body[i], a_type[i], a_scale[i], a_thickness[i], a_is_solid[i], a_transform[i], a_flags[i],
-            )
-
-            if ty == newton.GEO_PLANE:
-                w = scale[0] if scale[0] > 0.0 else 100.0
-                l = scale[1] if scale[1] > 0.0 else 100.0
-
-                mesh = trimesh.Trimesh(
-                    np.array([[-w, -l, 0.0], [w, -l, 0.0], [w, l, 0.0], [-w, l, 0.0]]),
-                    np.array([[0, 1, 2], [0, 2, 3]]),
-                    process=False,
+            for i in range(model.shape_count):
+                key, src = model.shape_key[i], model.shape_geo_src[i]
+                body, ty, scale, th, is_solid, transform, flag = (
+                    a_body[i], a_type[i], a_scale[i], a_thickness[i], a_is_solid[i], a_transform[i], a_flags[i],
                 )
 
-            elif ty == newton.GEO_SPHERE:
-                mesh = trimesh.creation.icosphere(radius=scale[0])
+                if ty == newton.GEO_PLANE:
+                    w = scale[0] if scale[0] > 0.0 else 100.0
+                    l = scale[1] if scale[1] > 0.0 else 100.0
 
-            elif ty == newton.GEO_CAPSULE:
-                mesh = trimesh.creation.capsule(radius=scale[0], height=scale[1] * 2)
-                mesh = mesh.apply_transform(rotation_matrix(np.deg2rad(90), [0, 0, 1]))
+                    mesh = trimesh.Trimesh(
+                        np.array([[-w, -l, 0.0], [w, -l, 0.0], [w, l, 0.0], [-w, l, 0.0]]),
+                        np.array([[0, 1, 2], [0, 2, 3]]),
+                        process=False,
+                    )
 
-            elif ty == newton.GEO_CYLINDER:
-                warnings.warn('Newton does not support collision for GEO_CYLINDER')
-                mesh = trimesh.creation.cylinder(radius=scale[0], height=scale[1] * 2)
-                mesh = mesh.apply_transform(rotation_matrix(np.deg2rad(90), [0, 0, 1]))
+                elif ty == newton.GEO_SPHERE:
+                    mesh = trimesh.creation.icosphere(radius=scale[0])
 
-            elif ty == newton.GEO_CONE:
-                warnings.warn('Newton does not support collision for GEO_CONE')
-                mesh = trimesh.creation.cone(radius=scale[0], height=scale[1] * 2)
-                mesh = mesh.apply_transform(rotation_matrix(np.deg2rad(90), [0, 0, 1]))
+                elif ty == newton.GEO_CAPSULE:
+                    mesh = trimesh.creation.capsule(radius=scale[0], height=scale[1] * 2)
+                    mesh = mesh.apply_transform(rotation_matrix(np.deg2rad(90), [0, 0, 1]))
 
-            elif ty == newton.GEO_BOX:
-                mesh = trimesh.creation.box(extents=[scale[0] * 2, scale[1] * 2, scale[2] * 2])
+                elif ty == newton.GEO_CYLINDER:
+                    warnings.warn('Newton does not support collision for GEO_CYLINDER')
+                    mesh = trimesh.creation.cylinder(radius=scale[0], height=scale[1] * 2)
+                    mesh = mesh.apply_transform(rotation_matrix(np.deg2rad(90), [0, 0, 1]))
 
-            elif ty == newton.GEO_MESH:
-                if not is_solid:
-                    faces, vertices = solidify_mesh(src.indices, src.vertices, th)
+                elif ty == newton.GEO_CONE:
+                    warnings.warn('Newton does not support collision for GEO_CONE')
+                    mesh = trimesh.creation.cone(radius=scale[0], height=scale[1] * 2)
+                    mesh = mesh.apply_transform(rotation_matrix(np.deg2rad(90), [0, 0, 1]))
+
+                elif ty == newton.GEO_BOX:
+                    mesh = trimesh.creation.box(extents=[scale[0] * 2, scale[1] * 2, scale[2] * 2])
+
+                elif ty == newton.GEO_MESH:
+                    if not is_solid:
+                        faces, vertices = solidify_mesh(src.indices, src.vertices, th)
+                    else:
+                        faces, vertices = src.indices, src.vertices
+
+                    mesh = trimesh.Trimesh(vertices.reshape(-1, 3), faces.reshape(-1, 3), process=False)
+
+                elif ty == newton.GEO_SDF:
+                    warnings.warn('Newton does not support collision for GEO_SDF')
+                    warnings.warn('Not implemented GEO_SDF')
+                    continue
                 else:
-                    faces, vertices = src.indices, src.vertices
+                    continue
 
-                mesh = trimesh.Trimesh(vertices.reshape(-1, 3), faces.reshape(-1, 3), process=False)
-
-            elif ty == newton.GEO_SDF:
-                warnings.warn('Newton does not support collision for GEO_SDF')
-                warnings.warn('Not implemented GEO_SDF')
-                continue
-            else:
-                continue
-
-            self._model_dict['ShapeMesh'].append({
-                'Name': str(key) if key is not None else '',
-                'Body': int(body),
-                'Transform': tuple(float(_) for _ in transform),
-                'Vertices': self.cache(mesh.vertices.flatten().astype(np.float32).tobytes()),
-                'Indices': self.cache(mesh.faces.flatten().astype(np.int32).tobytes()),
-            })
-
-        if model.particle_count:
-            tri_mesh = trimesh.Trimesh(model.particle_q.numpy(), model.tri_indices.numpy(), process=False)
-            components = connected_components(
-                edges=tri_mesh.face_adjacency, nodes=np.arange(len(tri_mesh.faces)),
-            )
-            for face_idx in components:
-                faces = tri_mesh.faces[face_idx]
-                begin, end = np.min(faces), np.max(faces) + 1
-                count = end - begin
-                mesh = trimesh.Trimesh(tri_mesh.vertices[begin:end], faces - begin, process=False)
-
-                self._model_dict['SoftMesh'].append({
-                    'Name': f'SoftMesh_{begin}_{count}',
-                    'Begin': int(begin),
-                    'Count': int(count),
+                self._model_dict['ShapeMesh'].append({
+                    'Name': f'Sm_{key}_{body}',
+                    'Body': int(body),
+                    'Transform': tuple(float(_) for _ in transform),
                     'Vertices': self.cache(mesh.vertices.flatten().astype(np.float32).tobytes()),
                     'Indices': self.cache(mesh.faces.flatten().astype(np.int32).tobytes()),
                 })
 
-            # TODO: tets, edges, springs
+        if model.particle_count > 0:
+            particle_q = model.particle_q.numpy()
+
+            # soft triangles
+            if model.tri_indices is not None:
+                tri_indices = model.tri_indices.numpy()
+
+                tri_mesh = trimesh.Trimesh(particle_q, tri_indices, process=False)
+                components = connected_components(
+                    edges=tri_mesh.face_adjacency, nodes=np.arange(len(tri_mesh.faces)),
+                )
+                for face_idx in components:
+                    faces = tri_mesh.faces[face_idx]
+                    begin, end = np.min(faces), np.max(faces) + 1
+                    count = end - begin
+                    mesh = trimesh.Trimesh(tri_mesh.vertices[begin:end], faces - begin, process=False)
+
+                    self._model_dict['SoftMesh'].append({
+                        'Name': f'Sf_{begin}_{count}',
+                        'Begin': int(begin),
+                        'Count': int(count),
+                        'Vertices': self.cache(mesh.vertices.flatten().astype(np.float32).tobytes()),
+                        'Indices': self.cache(mesh.faces.flatten().astype(np.int32).tobytes()),
+                    })
+
+            # granular & fluid, ignore tet, edge, spring
+            indices = set()
+            for _ in (model.tri_indices, model.tet_indices, model.edge_indices, model.spring_indices):
+                if _ is not None:
+                    indices.update(_.numpy().flatten())
+            granular = sorted(set(range(model.particle_count)) - indices)
+
+            isolated = np.array(granular, dtype=int)
+            breaks = np.where(np.diff(isolated) > 1)[0] + 1
+            for seg in np.split(isolated, breaks):
+                begin, end = np.min(seg), np.max(seg) + 1
+                count = end - begin
+                particles = particle_q[begin:end]
+
+                self._model_dict['GranularFluid'].append({
+                    'Name': f'Gf_{begin}_{count}',
+                    'Begin': int(begin),
+                    'Count': int(count),
+                    'Particles': self.cache(particles.flatten().astype(np.float32).tobytes()),
+                })
 
         shutil.rmtree(self._frame_dir, ignore_errors=True)
         os.makedirs(self._model_json.parent, exist_ok=True)
