@@ -108,10 +108,11 @@ class SimRenderer:
             particle_q = model.particle_q.numpy()
 
             # soft triangles
-            if model.tri_indices is not None:
+            if model.tri_indices is not None and len(model.tri_indices):
                 tri_indices = model.tri_indices.numpy()
 
                 tri_mesh = trimesh.Trimesh(particle_q, tri_indices, process=False)
+
                 components = connected_components(
                     edges=tri_mesh.face_adjacency, nodes=np.arange(len(tri_mesh.faces)),
                 )
@@ -193,4 +194,7 @@ class SimRenderer:
         """"""
 
     def save(self):
+        """"""
+
+    def render_contacts(self, *args, **kwargs):
         """"""
