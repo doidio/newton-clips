@@ -1,12 +1,12 @@
 [project]
 name = "newton-clips"
 version = "0.1.0"
-description = "Clips from newton-physics simulation"
+description = "Clips from newton-physics simulation to Unreal Engine 5 runtime"
 requires-python = ">=3.9"
 dependencies = [
     "warp-lang[extras]",
-    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp",
-    "newton-physics @ git+https://github.com/newton-physics/newton",
+    "mujoco-warp",
+    "newton-physics",
     "scipy>=1.13.1",
     "trimesh>=4.7.1",
     "mujoco",
