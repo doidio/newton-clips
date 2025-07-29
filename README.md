@@ -2,17 +2,23 @@
 
 > Clips from [newton-physics](https://github.com/newton-physics/newton) simulation to Unreal Engine 5 runtime
 
-- replace renderers in `newton-physics` and convert simulation data
 - exchange the simulation data with [NewtonClips](https://github.com/doidio/NewtonClips), a twin UE5 plugin
+- replace renderers in `newton-physics` and convert simulation data
 - support `newton-physics` examples with the least code change
 
 ## Install
 
 ```
-pip install newtonclips
+pip install newton-clips
 ```
 
-## Run `newton.examples`
+## Getting started
+
+1. run `newtonclips/example.py`
+2. find generated simulation data in `newtonclips.SAVE_DIR`
+3. use this directory in [NewtonClips](https://github.com/doidio/NewtonClips)
+
+## How to run `newton.examples`
 
 ```python
 import newtonclips  # replace newton renderers implicitly

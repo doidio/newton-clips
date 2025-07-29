@@ -160,7 +160,7 @@ class SimRenderer:
         shutil.rmtree(self._frame_dir, ignore_errors=True)
         os.makedirs(self._model_json.parent, exist_ok=True)
         self._model_json.write_text(json.dumps(self._model_dict, indent=4, ensure_ascii=False), 'utf-8')
-        print(f'SimRenderer save model in {self._model_json.parent.absolute()}')
+        print(f'[newtonclips.SAVE_DIR] {self._model_json.parent.absolute()}')
 
     def cache(self, hash_data: bytes | str) -> str | bytes | None:
         if isinstance(hash_data, bytes):

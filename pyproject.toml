@@ -1,6 +1,6 @@
 [project]
 name = "newton-clips"
-version = "0.1.0"
+version = "0.1.1"
 description = "Clips from newton-physics simulation to Unreal Engine 5 runtime"
 requires-python = ">=3.9"
 dependencies = [
@@ -12,7 +12,7 @@ dependencies = [
     "mujoco",
     "networkx>=3.2.1",
 ]
-readme = "README.md"
+readme = { file = "README.md", content-type = "text/markdown" }
 keywords = ["newton", "physics", "simulation", "unreal engine"]
 
 [project.urls]
