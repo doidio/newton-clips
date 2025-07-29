@@ -1,6 +1,6 @@
 [project]
 name = "newton-clips"
-version = "0.1.1"
+version = "0.1.2"
 description = "Clips from newton-physics simulation to Unreal Engine 5 runtime"
 requires-python = ">=3.9"
 dependencies = [

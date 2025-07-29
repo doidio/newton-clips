@@ -32,6 +32,7 @@ class SimRenderer:
         self._model_dict = {
             'Sha1': uuid.uuid4().hex,
             'Scale': SCALING,
+            'UpAxis': model.up_axis,
             'ShapeMesh': [],
             'SoftMesh': [],
             'GranularFluid': [],
