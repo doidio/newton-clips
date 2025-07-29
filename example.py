@@ -141,7 +141,7 @@ state_0 = model.state()
 state_1 = model.state()
 control = model.control()
 
-renderer = newtonclips.SimRenderer(model, enable_backface_culling=False)
+renderer = newtonclips.SimRendererOpenGL(model)
 
 fps = 60
 frame_dt = 1.0 / fps

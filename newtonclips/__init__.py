@@ -197,6 +197,9 @@ class SimRenderer:
 
         self._frames.append(frame)
 
+    def end_frame(self):
+        """"""
+
 
 def CreateSimRenderer(Super):
     class Renderer(SimRenderer, Super):
@@ -211,6 +214,10 @@ def CreateSimRenderer(Super):
         def render(self, state: newton.State):
             SimRenderer.render(self, state)
             Super.render(self, state)
+
+        def end_frame(self):
+            SimRenderer.end_frame(self)
+            Super.end_frame(self)
 
     return Renderer
 

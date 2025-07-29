@@ -12,6 +12,14 @@ dependencies = [
     "mujoco",
     "networkx>=3.2.1",
 ]
+readme = "README.md"
+keywords = ["newton", "physics", "simulation", "unreal engine"]
+
+[project.urls]
+Homepage = "https://github.com/doidio/newton-clips"
+#Documentation = "https://readthedocs.org"
+Repository = "https://github.com/doidio/newton-clips"
+Issues = "https://github.com/doidio/newton-clips/issues"
 
 [tool.uv.sources]
 newton-physics = { git = "https://github.com/newton-physics/newton" }
