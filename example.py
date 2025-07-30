@@ -1,4 +1,5 @@
 import newton
+import numpy as np
 import tetgen
 import trimesh
 import warp as wp
@@ -25,7 +26,7 @@ builder.add_shape_plane(
 
 builder.add_shape_box(
     body=builder.add_body(),
-    xform=(0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 1.0),
+    xform=(0.0, 0.0, 4.5, 0.0, 0.0, 0.0, 1.0),
     hx=0.5,
     hy=0.2,
     hz=0.1,
@@ -149,7 +150,7 @@ sim_substeps = 500
 sim_dt = frame_dt / sim_substeps
 sim_time = 0.0
 
-for i in range(num_frames := 1500):
+for _ in range(num_frames := 500):
     for _ in range(sim_substeps):
         contacts = model.collide(state_0)
         state_0.clear_forces()
@@ -163,6 +164,32 @@ for i in range(num_frames := 1500):
 
     renderer.begin_frame(sim_time)
     renderer.render(state_0)
+
+    body_qd = state_0.body_qd.numpy()
+
+    for i in range(builder.shape_count):
+        body = builder.shape_body[i]
+
+        if body > -1:
+            v = np.linalg.norm(body_qd[body][-3:])
+            qd = (1.0, 1.0 / (v + 1.0), 1.0 / (v + 1.0), 1.0)
+        else:
+            qd = (1.0, 1.0, 1.0, 1.0)
+
+        renderer.render_shape_vertex_color(i, qd)
+
+    particle_qd = state_0.particle_qd.numpy()
+
+    v = np.linalg.norm(particle_qd, axis=1)
+
+    v = np.column_stack([
+        np.full_like(v, 1.0),
+        1.0 / (v + 1.0),
+        1.0 / (v + 1.0),
+        np.full_like(v, 1.0)
+    ])
+    renderer.render_particle_color(v)
+
     renderer.end_frame()
 
 renderer.save()

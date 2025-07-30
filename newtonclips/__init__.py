@@ -30,7 +30,7 @@ class SimRenderer:
         self._frame_dir = self._save_dir / 'frames'
 
         self._model_dict = {
-            'Sha1': uuid.uuid4().hex,
+            'Uuid': uuid.uuid4().hex,
             'Scale': SCALING,
             'UpAxis': model.up_axis,
             'ShapeMesh': [],
@@ -155,7 +155,7 @@ class SimRenderer:
                     'Name': f'GF_{begin}_{count}',
                     'Begin': int(begin),
                     'Count': int(count),
-                    'Particles': self.cache(particles.flatten().astype(np.float32).tobytes()),
+                    'ParticlePositions': self.cache(particles.flatten().astype(np.float32).tobytes()),
                 })
 
         shutil.rmtree(self._frame_dir, ignore_errors=True)
@@ -181,25 +181,41 @@ class SimRenderer:
         self.delta_time = sim_time - self.sim_time
         self.sim_time = sim_time
 
+        self._frames.append({
+            'DeltaTime': self.delta_time,
+            'BodyTransforms': '',
+            'ParticlePositions': '',
+            'ShapeVertexColors': {},
+            'ParticleColors': {},
+        })
+
     def render(self, state: newton.State):
         body_q = state.body_q.numpy() if state.body_q is not None else []
         particle_q = state.particle_q.numpy() if state.particle_q is not None else []
 
-        frame = {
-            'DeltaTime': self.delta_time,
-            'BodyTransform': self.cache(np.array(body_q, np.float32).reshape(-1, 7).flatten().tobytes()),
-            'ParticlePosition': self.cache(np.array(particle_q, np.float32).reshape(-1, 3).flatten().tobytes()),
-        }
+        self._frames[-1]['BodyTransforms'] = self.cache(
+            np.array(body_q, np.float32).reshape(-1, 7).flatten().tobytes()
+        )
+        self._frames[-1]['ParticlePositions'] = self.cache(
+            np.array(particle_q, np.float32).reshape(-1, 3).flatten().tobytes()
+        )
 
-        os.makedirs(self._frame_dir, exist_ok=True)
+    def render_shape_vertex_color(self, i, colors):
+        self._frames[-1]['ShapeVertexColors'][i] = self.cache(
+            np.array(colors, np.float32).reshape(-1, 4).flatten().tobytes()
+        )
 
-        frame_json = self._frame_dir / f'{len(self._frames)}.json'
-        frame_json.write_text(json.dumps(frame, indent=4, ensure_ascii=False), 'utf-8')
-
-        self._frames.append(frame)
+    def render_particle_color(self, colors):
+        for item in (*self._model_dict['SoftMesh'], *self._model_dict['GranularFluid']):
+            begin, count = item['Begin'], item['Count']
+            self._frames[-1]['ParticleColors'][begin] = self.cache(
+                np.array(colors[begin:begin + count], np.float32).reshape(-1, 4).flatten().tobytes()
+            )
 
     def end_frame(self):
-        """"""
+        os.makedirs(self._frame_dir, exist_ok=True)
+        frame_json = self._frame_dir / f'{len(self._frames) - 1}.json'
+        frame_json.write_text(json.dumps(self._frames[-1], indent=4, ensure_ascii=False), 'utf-8')
 
 
 def CreateSimRenderer(Super):
@@ -215,6 +231,12 @@ def CreateSimRenderer(Super):
         def render(self, state: newton.State):
             SimRenderer.render(self, state)
             Super.render(self, state)
+
+        def render_shape_vertex_color(self, i, colors):
+            SimRenderer.render_shape_vertex_color(self, i, colors)
+
+        def render_particle_color(self, colors):
+            SimRenderer.render_particle_color(self, colors)
 
         def end_frame(self):
             SimRenderer.end_frame(self)
