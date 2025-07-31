@@ -166,3 +166,5 @@ for _ in range(num_frames := 500):
     renderer.end_frame()
 
 renderer.save()
+
+# newtonclips.save_record(fps=fps)

@@ -4,6 +4,7 @@ import os
 import shutil
 import uuid
 import warnings
+from datetime import datetime
 from pathlib import Path
 
 import newton
@@ -18,6 +19,28 @@ SAVE_DIR: str
 SCALING: float = 1.0
 
 
+def save_record(fps: int, name: str | None = None):
+    try:
+        save_dir = Path(SAVE_DIR)
+    except NameError:
+        raise Exception('You should set newtonclips.SAVE_DIR')
+
+    from moviepy import ImageSequenceClip
+    files = []
+    while (f := save_dir / 'record' / f'{len(files) + 1}.png').exists():
+        files.append(f)
+
+    if len(files):
+        if name is None:
+            file = save_dir / f'{datetime.now().strftime('%Y%m%d%H%M%S')}.mp4'
+        else:
+            if not name.endswith('.mp4'):
+                name += '.mp4'
+            file = save_dir / f'{name}'
+        clip = ImageSequenceClip([f.as_posix() for f in files], fps=fps)
+        clip.write_videofile(file, audio=False, ffmpeg_params=['-crf', '1'])
+
+
 class SimRenderer:
     def __init__(self, model: newton.Model):
         try:
@@ -27,7 +50,7 @@ class SimRenderer:
 
         self._cache_dir = self._save_dir / '.cache'
         self._model_json = self._save_dir / 'model.json'
-        self._frame_dir = self._save_dir / 'frames'
+        self._frame_dir = self._save_dir / 'frame'
 
         self._model = model
         self._model_dict = {
