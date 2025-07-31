@@ -29,6 +29,7 @@ class SimRenderer:
         self._model_json = self._save_dir / 'model.json'
         self._frame_dir = self._save_dir / 'frames'
 
+        self._model = model
         self._model_dict = {
             'Uuid': uuid.uuid4().hex,
             'Scale': SCALING,
@@ -185,8 +186,8 @@ class SimRenderer:
             'DeltaTime': self.delta_time,
             'BodyTransforms': '',
             'ParticlePositions': '',
-            'ShapeVertexColors': {},
-            'ParticleColors': {},
+            'ShapeVertexHues': {},
+            'ParticleHues': {},
         })
 
     def render(self, state: newton.State):
@@ -200,16 +201,34 @@ class SimRenderer:
             np.array(particle_q, np.float32).reshape(-1, 3).flatten().tobytes()
         )
 
-    def render_shape_vertex_color(self, i, colors):
-        self._frames[-1]['ShapeVertexColors'][i] = self.cache(
-            np.array(colors, np.float32).reshape(-1, 4).flatten().tobytes()
+        body_qd = state.body_qd.numpy()
+        shape_body = self._model.shape_body.numpy()
+
+        for i in range(self._model.shape_count):
+            body = shape_body[i]
+
+            if body > -1:
+                v = np.linalg.norm(body_qd[body][-3:])
+                qd = 210 * 1.0 / (v + 1.0)
+            else:
+                qd = 210
+
+            self.render_shape_vertex_hue(i, qd)
+
+        particle_qd = state.particle_qd.numpy()
+        v = np.linalg.norm(particle_qd, axis=1)
+        self.render_particle_hue(210 * 1.0 / (v + 1.0))
+
+    def render_shape_vertex_hue(self, i, hues):
+        self._frames[-1]['ShapeVertexHues'][i] = self.cache(
+            np.array(hues, np.float32).flatten().tobytes()
         )
 
-    def render_particle_color(self, colors):
+    def render_particle_hue(self, hues):
         for item in (*self._model_dict['SoftMesh'], *self._model_dict['GranularFluid']):
             begin, count = item['Begin'], item['Count']
-            self._frames[-1]['ParticleColors'][begin] = self.cache(
-                np.array(colors[begin:begin + count], np.float32).reshape(-1, 4).flatten().tobytes()
+            self._frames[-1]['ParticleHues'][begin] = self.cache(
+                np.array(hues[begin:begin + count], np.float32).flatten().tobytes()
             )
 
     def end_frame(self):
@@ -218,37 +237,41 @@ class SimRenderer:
         frame_json.write_text(json.dumps(self._frames[-1], indent=4, ensure_ascii=False), 'utf-8')
 
 
-def CreateSimRenderer(Super):
+def _CreateSimRenderer(Super, no_super=False):
     class Renderer(SimRenderer, Super):
         def __init__(self, model, *args, **kwargs):
             SimRenderer.__init__(self, model)
-            Super.__init__(self, model, *args, **kwargs)
+            if no_super:
+                Super.__init__(self, model, *args, **kwargs)
 
         def begin_frame(self, sim_time: float):
             SimRenderer.begin_frame(self, sim_time)
-            Super.begin_frame(self, sim_time)
+            if no_super:
+                Super.begin_frame(self, sim_time)
 
         def render(self, state: newton.State):
             SimRenderer.render(self, state)
-            Super.render(self, state)
+            if no_super:
+                Super.render(self, state)
 
-        def render_shape_vertex_color(self, i, colors):
-            SimRenderer.render_shape_vertex_color(self, i, colors)
+        def render_shape_vertex_hue(self, i, hues):
+            SimRenderer.render_shape_vertex_hue(self, i, hues)
 
-        def render_particle_color(self, colors):
-            SimRenderer.render_particle_color(self, colors)
+        def render_particle_hue(self, hues):
+            SimRenderer.render_particle_hue(self, hues)
 
         def end_frame(self):
             SimRenderer.end_frame(self)
-            Super.end_frame(self)
+            if no_super:
+                Super.end_frame(self)
 
     return Renderer
 
 
-SimRendererOpenGL = CreateSimRenderer(newton.utils.SimRendererOpenGL)
-newton.utils.SimRendererOpenGL = SimRendererOpenGL
+SimRendererOpenGL = _CreateSimRenderer(newton.utils.SimRendererOpenGL)
+newton.utils.SimRendererOpenGL = _CreateSimRenderer(newton.utils.SimRendererOpenGL, no_super=True)
 
-SimRendererUsd = CreateSimRenderer(newton.utils.SimRendererUsd)
-newton.utils.SimRendererUsd = SimRendererUsd
+SimRendererUsd = _CreateSimRenderer(newton.utils.SimRendererUsd)
+newton.utils.SimRendererUsd = _CreateSimRenderer(newton.utils.SimRendererUsd, no_super=True)
 
 newton.utils.SimRenderer = newton.utils.SimRendererOpenGL

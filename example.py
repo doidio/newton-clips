@@ -1,5 +1,4 @@
 import newton
-import numpy as np
 import tetgen
 import trimesh
 import warp as wp
@@ -164,32 +163,6 @@ for _ in range(num_frames := 500):
 
     renderer.begin_frame(sim_time)
     renderer.render(state_0)
-
-    body_qd = state_0.body_qd.numpy()
-
-    for i in range(builder.shape_count):
-        body = builder.shape_body[i]
-
-        if body > -1:
-            v = np.linalg.norm(body_qd[body][-3:])
-            qd = (1.0, 1.0 / (v + 1.0), 1.0 / (v + 1.0), 1.0)
-        else:
-            qd = (1.0, 1.0, 1.0, 1.0)
-
-        renderer.render_shape_vertex_color(i, qd)
-
-    particle_qd = state_0.particle_qd.numpy()
-
-    v = np.linalg.norm(particle_qd, axis=1)
-
-    v = np.column_stack([
-        np.full_like(v, 1.0),
-        1.0 / (v + 1.0),
-        1.0 / (v + 1.0),
-        np.full_like(v, 1.0)
-    ])
-    renderer.render_particle_color(v)
-
     renderer.end_frame()
 
 renderer.save()
