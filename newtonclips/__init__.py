@@ -236,6 +236,9 @@ class SimRenderer:
         frame_json = self._frame_dir / f'{len(self._frames) - 1}.json'
         frame_json.write_text(json.dumps(self._frames[-1], indent=4, ensure_ascii=False), 'utf-8')
 
+    def save(self):
+        """"""
+
 
 def _CreateSimRenderer(Super, no_super=False):
     class Renderer(SimRenderer, Super):
@@ -264,6 +267,11 @@ def _CreateSimRenderer(Super, no_super=False):
             SimRenderer.end_frame(self)
             if no_super:
                 Super.end_frame(self)
+
+        def save(self):
+            SimRenderer.save(self)
+            if no_super:
+                Super.save(self)
 
     return Renderer
 
