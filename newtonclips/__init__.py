@@ -11,6 +11,7 @@ import newton
 import newton.utils.render
 import numpy as np
 import trimesh
+import warp as wp
 from trimesh.graph import connected_components
 from trimesh.transformations import rotation_matrix
 from warp.render.utils import solidify_mesh
@@ -32,13 +33,20 @@ def save_record(fps: int, name: str | None = None):
 
     if len(files):
         if name is None:
-            file = save_dir / f'{datetime.now().strftime('%Y%m%d%H%M%S')}.mp4'
+            file = save_dir / f'{datetime.now().strftime("%Y%m%d%H%M%S")}.mp4'
         else:
             if not name.endswith('.mp4'):
                 name += '.mp4'
             file = save_dir / f'{name}'
         clip = ImageSequenceClip([f.as_posix() for f in files], fps=fps)
         clip.write_videofile(file, audio=False, ffmpeg_params=['-crf', '1'])
+    else:
+        warnings.warn(f'No screenshots in {save_dir.as_posix()}/record')
+
+
+class SDF(newton.SDF):
+    def finalize(self, device=None) -> wp.types.uint64:
+        return self.volume.id
 
 
 class SimRenderer:
@@ -69,20 +77,20 @@ class SimRenderer:
 
         if model.shape_count > 0:
             a_body = model.shape_body.numpy()
-            a_type = model.shape_geo.type.numpy()
-            a_scale = model.shape_geo.scale.numpy()
-            a_thickness = model.shape_geo.thickness.numpy()
-            a_is_solid = model.shape_geo.is_solid.numpy()
+            a_type = model.shape_type.numpy()
+            a_scale = model.shape_scale.numpy()
+            a_thickness = model.shape_thickness.numpy()
+            a_is_solid = model.shape_is_solid.numpy()
             a_transform = model.shape_transform.numpy()
             a_flags = model.shape_flags.numpy()
 
             for i in range(model.shape_count):
-                key, src = model.shape_key[i], model.shape_geo_src[i]
+                key, src = model.shape_key[i], model.shape_source[i]
                 body, ty, scale, th, is_solid, transform, flag = (
                     a_body[i], a_type[i], a_scale[i], a_thickness[i], a_is_solid[i], a_transform[i], a_flags[i],
                 )
 
-                if ty == newton.GEO_PLANE:
+                if ty == newton.GeoType.PLANE:
                     w = scale[0] if scale[0] > 0.0 else 100.0
                     l = scale[1] if scale[1] > 0.0 else 100.0
 
@@ -92,27 +100,27 @@ class SimRenderer:
                         process=False,
                     )
 
-                elif ty == newton.GEO_SPHERE:
+                elif ty == newton.GeoType.SPHERE:
                     mesh = trimesh.creation.icosphere(radius=scale[0])
 
-                elif ty == newton.GEO_CAPSULE:
+                elif ty == newton.GeoType.CAPSULE:
                     mesh = trimesh.creation.capsule(radius=scale[0], height=scale[1] * 2)
                     mesh = mesh.apply_transform(rotation_matrix(np.deg2rad(90), [0, 0, 1]))
 
-                elif ty == newton.GEO_CYLINDER:
-                    warnings.warn('Newton does not support collision for GEO_CYLINDER')
+                elif ty == newton.GeoType.CYLINDER:
+                    warnings.warn('Newton does not support collision for CYLINDER')
                     mesh = trimesh.creation.cylinder(radius=scale[0], height=scale[1] * 2)
                     mesh = mesh.apply_transform(rotation_matrix(np.deg2rad(90), [0, 0, 1]))
 
-                elif ty == newton.GEO_CONE:
-                    warnings.warn('Newton does not support collision for GEO_CONE')
+                elif ty == newton.GeoType.CONE:
+                    warnings.warn('Newton does not support collision for CONE')
                     mesh = trimesh.creation.cone(radius=scale[0], height=scale[1] * 2)
                     mesh = mesh.apply_transform(rotation_matrix(np.deg2rad(90), [0, 0, 1]))
 
-                elif ty == newton.GEO_BOX:
+                elif ty == newton.GeoType.BOX:
                     mesh = trimesh.creation.box(extents=[scale[0] * 2, scale[1] * 2, scale[2] * 2])
 
-                elif ty == newton.GEO_MESH:
+                elif ty == newton.GeoType.MESH:
                     if not is_solid:
                         faces, vertices = solidify_mesh(src.indices, src.vertices, th)
                     else:
@@ -120,9 +128,9 @@ class SimRenderer:
 
                     mesh = trimesh.Trimesh(vertices.reshape(-1, 3), faces.reshape(-1, 3), process=False)
 
-                elif ty == newton.GEO_SDF:
-                    warnings.warn('Newton does not support collision for GEO_SDF')
-                    warnings.warn('Not implemented GEO_SDF')
+                elif ty == newton.GeoType.SDF:
+                    warnings.warn('Newton does not support collision for SDF')
+                    warnings.warn('Not implemented SDF')
                     continue
                 else:
                     continue
@@ -199,7 +207,6 @@ class SimRenderer:
                 return f.read_bytes()
             else:
                 return bytes()
-        raise TypeError(f'Invalid cache {hash_data}')
 
     def begin_frame(self, sim_time: float):
         self.delta_time = sim_time - self.sim_time
@@ -214,33 +221,33 @@ class SimRenderer:
         })
 
     def render(self, state: newton.State):
-        body_q = state.body_q.numpy() if state.body_q is not None else []
-        particle_q = state.particle_q.numpy() if state.particle_q is not None else []
+        if state.body_count > 0:
+            self._frames[-1]['BodyTransforms'] = self.cache(
+                state.body_q.numpy().astype(np.float32).reshape(-1, 7).flatten().tobytes()
+            )
 
-        self._frames[-1]['BodyTransforms'] = self.cache(
-            np.array(body_q, np.float32).reshape(-1, 7).flatten().tobytes()
-        )
-        self._frames[-1]['ParticlePositions'] = self.cache(
-            np.array(particle_q, np.float32).reshape(-1, 3).flatten().tobytes()
-        )
+            body_qd = state.body_qd.numpy()
+            shape_body = self._model.shape_body.numpy()
 
-        body_qd = state.body_qd.numpy()
-        shape_body = self._model.shape_body.numpy()
+            for i in range(self._model.shape_count):
+                body = shape_body[i]
 
-        for i in range(self._model.shape_count):
-            body = shape_body[i]
+                if body > -1:
+                    v = np.linalg.norm(body_qd[body][-3:])
+                    qd = 210 * 1.0 / (v + 1.0)
+                else:
+                    qd = 210
 
-            if body > -1:
-                v = np.linalg.norm(body_qd[body][-3:])
-                qd = 210 * 1.0 / (v + 1.0)
-            else:
-                qd = 210
+                self.render_shape_vertex_hue(i, qd)
 
-            self.render_shape_vertex_hue(i, qd)
+        if state.particle_count > 0:
+            self._frames[-1]['ParticlePositions'] = self.cache(
+                state.particle_q.numpy().astype(np.float32).reshape(-1, 3).flatten().tobytes()
+            )
 
-        particle_qd = state.particle_qd.numpy()
-        v = np.linalg.norm(particle_qd, axis=1)
-        self.render_particle_hue(210 * 1.0 / (v + 1.0))
+            particle_qd = state.particle_qd.numpy()
+            v = np.linalg.norm(particle_qd, axis=1)
+            self.render_particle_hue(210 * 1.0 / (v + 1.0))
 
     def render_shape_vertex_hue(self, i, hues):
         self._frames[-1]['ShapeVertexHues'][i] = self.cache(
@@ -263,21 +270,21 @@ class SimRenderer:
         """"""
 
 
-def _CreateSimRenderer(Super, no_super=False):
+def _CreateSimRenderer(Super, headless=False):
     class Renderer(SimRenderer, Super):
         def __init__(self, model, *args, **kwargs):
             SimRenderer.__init__(self, model)
-            if no_super:
+            if not headless:
                 Super.__init__(self, model, *args, **kwargs)
 
         def begin_frame(self, sim_time: float):
             SimRenderer.begin_frame(self, sim_time)
-            if no_super:
+            if not headless:
                 Super.begin_frame(self, sim_time)
 
         def render(self, state: newton.State):
             SimRenderer.render(self, state)
-            if no_super:
+            if not headless:
                 Super.render(self, state)
 
         def render_shape_vertex_hue(self, i, hues):
@@ -288,21 +295,21 @@ def _CreateSimRenderer(Super, no_super=False):
 
         def end_frame(self):
             SimRenderer.end_frame(self)
-            if no_super:
+            if not headless:
                 Super.end_frame(self)
 
         def save(self):
             SimRenderer.save(self)
-            if no_super:
+            if not headless:
                 Super.save(self)
 
     return Renderer
 
 
-SimRendererOpenGL = _CreateSimRenderer(newton.utils.SimRendererOpenGL)
-newton.utils.SimRendererOpenGL = _CreateSimRenderer(newton.utils.SimRendererOpenGL, no_super=True)
+SimRendererOpenGL = _CreateSimRenderer(newton.utils.SimRendererOpenGL, headless=True)
+newton.utils.SimRendererOpenGL = _CreateSimRenderer(newton.utils.SimRendererOpenGL)
 
-SimRendererUsd = _CreateSimRenderer(newton.utils.SimRendererUsd)
-newton.utils.SimRendererUsd = _CreateSimRenderer(newton.utils.SimRendererUsd, no_super=True)
+SimRendererUsd = _CreateSimRenderer(newton.utils.SimRendererUsd, headless=True)
+newton.utils.SimRendererUsd = _CreateSimRenderer(newton.utils.SimRendererUsd)
 
 newton.utils.SimRenderer = newton.utils.SimRendererOpenGL

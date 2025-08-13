@@ -81,7 +81,6 @@ dim, cell = 15, 0.1
 center_x = dim * cell * 0.5
 center_y = dim * cell * 0.5
 
-mesh = trimesh.creation.icosphere(radius=0.5)
 builder.add_cloth_grid(
     pos=(-center_x + 1.0, -center_y - 0.5, 4),
     dim_x=dim,
@@ -99,9 +98,9 @@ dim, cell = 15, 0.1
 center = dim * cell * 0.5
 
 builder.add_soft_grid(
-    pos=wp.vec3(-center, -center, 2.0),
+    pos=wp.types.vec3(-center, -center, 2.0),
     rot=wp.quat_identity(),
-    vel=wp.vec3(),
+    vel=wp.types.vec3(),
     dim_x=dim,
     dim_y=dim,
     dim_z=dim,
@@ -119,9 +118,9 @@ dim, cell = 10, 0.1
 center = dim * cell * 0.5
 
 builder.add_particle_grid(
-    pos=wp.vec3(-center, -center, 5.0),
+    pos=wp.types.vec3(-center, -center, 5.0),
     rot=wp.quat_identity(),
-    vel=wp.vec3(),
+    vel=wp.types.vec3(),
     dim_x=dim,
     dim_y=dim,
     dim_z=dim,
@@ -141,7 +140,9 @@ state_0 = model.state()
 state_1 = model.state()
 control = model.control()
 
-renderer = newtonclips.SimRendererOpenGL(model)
+import newton.utils
+renderer = newton.utils.SimRendererOpenGL(model)
+# renderer = newtonclips.SimRendererOpenGL(model)
 
 fps = 60
 frame_dt = 1.0 / fps
