@@ -22,7 +22,7 @@ SCALING: float = 1.0
 
 def save_record(fps: int, name: str | None = None):
     try:
-        save_dir = Path(SAVE_DIR)
+        save_dir = Path(SAVE_DIR).absolute()
     except NameError:
         raise Exception('You should set newtonclips.SAVE_DIR')
 
@@ -216,8 +216,12 @@ class SimRenderer:
             'DeltaTime': self.delta_time,
             'BodyTransforms': '',
             'ParticlePositions': '',
-            'ShapeVertexHues': {},
-            'ParticleHues': {},
+            'ShapeVertexHueIndex': '',
+            'ShapeVertexHueCount': '',
+            'ShapeVertexHueValue': '',
+            'ParticleHueBegin': '',
+            'ParticleHueCount': '',
+            'ParticleHueValue': '',
         })
 
     def render(self, state: newton.State):
@@ -229,16 +233,25 @@ class SimRenderer:
             body_qd = state.body_qd.numpy()
             shape_body = self._model.shape_body.numpy()
 
-            for i in range(self._model.shape_count):
-                body = shape_body[i]
+            mask = shape_body > -1
+            i = np.where(mask)[0]
+            body = shape_body[mask]
 
-                if body > -1:
-                    v = np.linalg.norm(body_qd[body][-3:])
-                    qd = 210 * 1.0 / (v + 1.0)
-                else:
-                    qd = 210
+            v = np.linalg.norm(body_qd[body, -3:], axis=1)
+            v = 210.0 / (v + 1.0)
 
-                self.render_shape_vertex_hue(i, qd)
+            self._frames[-1]['ShapeVertexHueIndex'] = self.cache(
+                np.array(i, np.int32).flatten().tobytes()
+            )
+            self._frames[-1]['ShapeVertexHueCount'] = self.cache(
+                np.ones_like(i, np.int32).flatten().tobytes()
+            )
+            self._frames[-1]['ShapeVertexHueValue'] = self.cache(
+                np.array(v, np.float32).flatten().tobytes()
+            )
+        else:
+            for _ in ('ShapeVertexHueIndex', 'ShapeVertexHueCount', 'ShapeVertexHueValue'):
+                self._frames[-1][_] = ''
 
         if state.particle_count > 0:
             self._frames[-1]['ParticlePositions'] = self.cache(
@@ -247,19 +260,27 @@ class SimRenderer:
 
             particle_qd = state.particle_qd.numpy()
             v = np.linalg.norm(particle_qd, axis=1)
-            self.render_particle_hue(210 * 1.0 / (v + 1.0))
 
-    def render_shape_vertex_hue(self, i, hues):
-        self._frames[-1]['ShapeVertexHues'][i] = self.cache(
-            np.array(hues, np.float32).flatten().tobytes()
-        )
+            hues = 210 * 1.0 / (v + 1.0)
 
-    def render_particle_hue(self, hues):
-        for item in (*self._model_dict['SoftMesh'], *self._model_dict['GranularFluid']):
-            begin, count = item['Begin'], item['Count']
-            self._frames[-1]['ParticleHues'][begin] = self.cache(
-                np.array(hues[begin:begin + count], np.float32).flatten().tobytes()
+            begins = [it['Begin'] for it in (*self._model_dict['SoftMesh'], *self._model_dict['GranularFluid'])]
+            counts = [it['Count'] for it in (*self._model_dict['SoftMesh'], *self._model_dict['GranularFluid'])]
+
+            idx = np.concatenate([np.arange(b, b + c) for b, c in zip(begins, counts)])
+            values = hues[idx]
+
+            self._frames[-1]['ParticleHueBegin'] = self.cache(
+                np.array(begins, np.int32).flatten().tobytes()
             )
+            self._frames[-1]['ParticleHueCount'] = self.cache(
+                np.array(counts, np.int32).flatten().tobytes()
+            )
+            self._frames[-1]['ParticleHueValue'] = self.cache(
+                np.array(values, np.float32).flatten().tobytes()
+            )
+        else:
+            for _ in ('ParticleHueBegin', 'ParticleHueCount', 'ParticleHueValue'):
+                self._frames[-1][_] = ''
 
     def end_frame(self):
         os.makedirs(self._frame_dir, exist_ok=True)
@@ -286,12 +307,6 @@ def _CreateSimRenderer(Super, headless=False):
             SimRenderer.render(self, state)
             if not headless:
                 Super.render(self, state)
-
-        def render_shape_vertex_hue(self, i, hues):
-            SimRenderer.render_shape_vertex_hue(self, i, hues)
-
-        def render_particle_hue(self, hues):
-            SimRenderer.render_particle_hue(self, hues)
 
         def end_frame(self):
             SimRenderer.end_frame(self)
