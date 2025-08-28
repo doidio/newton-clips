@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 import newton
-import newton.utils.render
+import newton.viewer
 import numpy as np
 import trimesh
 import warp as wp
@@ -49,16 +49,31 @@ class SDF(newton.SDF):
         return self.volume.id
 
 
-class SimRenderer:
-    def __init__(self, model: newton.Model):
+class ViewerUE:
+    def __init__(self):
         try:
             self._save_dir = Path(SAVE_DIR)
         except NameError:
-            raise Exception('You should set newtonclips.SAVE_DIR before SimRenderer init')
+            raise Exception('You should set newtonclips.SAVE_DIR before Viewer init')
 
         self._cache_dir = self._save_dir / '.cache'
         self._model_json = self._save_dir / 'model.json'
         self._frame_dir = self._save_dir / 'frame'
+
+        self._model = None
+        self._model_dict = {}
+        self._frames = []
+        self.sim_time = 0.0
+        self.delta_time = 0.0
+
+    def set_model(self, model: newton.Model | None):
+        if model is None:
+            self._model = None
+            self._model_dict = {}
+            self._frames = []
+            self.sim_time = 0.0
+            self.delta_time = 0.0
+            return
 
         self._model = model
         self._model_dict = {
@@ -71,7 +86,6 @@ class SimRenderer:
         }
 
         self._frames = []
-
         self.sim_time = 0.0
         self.delta_time = 0.0
 
@@ -224,7 +238,7 @@ class SimRenderer:
             'ParticleHueValue': '',
         })
 
-    def render(self, state: newton.State):
+    def log_state(self, state: newton.State):
         if state.body_count > 0:
             self._frames[-1]['BodyTransforms'] = self.cache(
                 state.body_q.numpy().astype(np.float32).reshape(-1, 7).flatten().tobytes()
@@ -287,44 +301,42 @@ class SimRenderer:
         frame_json = self._frame_dir / f'{len(self._frames) - 1}.json'
         frame_json.write_text(json.dumps(self._frames[-1], indent=4, ensure_ascii=False), 'utf-8')
 
-    def save(self):
-        """"""
 
-
-def _CreateSimRenderer(Super, headless=False):
-    class Renderer(SimRenderer, Super):
-        def __init__(self, model, *args, **kwargs):
-            SimRenderer.__init__(self, model)
+def _CreateViewer(Super, headless=False):
+    class Viewer(ViewerUE, Super):
+        def __init__(self, *args, **kwargs):
+            ViewerUE.__init__(self)
             if not headless:
-                Super.__init__(self, model, *args, **kwargs)
+                Super.__init__(self, *args, **kwargs)
+
+        def set_model(self, model: newton.Model):
+            ViewerUE.set_model(self, model)
+            if not headless:
+                Super.set_model(self, model)
 
         def begin_frame(self, sim_time: float):
-            SimRenderer.begin_frame(self, sim_time)
+            ViewerUE.begin_frame(self, sim_time)
             if not headless:
                 Super.begin_frame(self, sim_time)
 
-        def render(self, state: newton.State):
-            SimRenderer.render(self, state)
+        def log_state(self, state: newton.State):
+            ViewerUE.log_state(self, state)
             if not headless:
-                Super.render(self, state)
+                Super.log_state(self, state)
 
         def end_frame(self):
-            SimRenderer.end_frame(self)
+            ViewerUE.end_frame(self)
             if not headless:
                 Super.end_frame(self)
 
-        def save(self):
-            SimRenderer.save(self)
-            if not headless:
-                Super.save(self)
-
-    return Renderer
+    return Viewer
 
 
-SimRendererOpenGL = _CreateSimRenderer(newton.utils.SimRendererOpenGL, headless=True)
-newton.utils.SimRendererOpenGL = _CreateSimRenderer(newton.utils.SimRendererOpenGL)
+ViewerGL = _CreateViewer(newton.viewer.ViewerGL, headless=True)
+newton.viewer.ViewerGL = _CreateViewer(newton.viewer.ViewerGL)
 
-SimRendererUsd = _CreateSimRenderer(newton.utils.SimRendererUsd, headless=True)
-newton.utils.SimRendererUsd = _CreateSimRenderer(newton.utils.SimRendererUsd)
+ViewerUSD = _CreateViewer(newton.viewer.ViewerUSD, headless=True)
+newton.viewer.ViewerUSD = _CreateViewer(newton.viewer.ViewerUSD)
 
-newton.utils.SimRenderer = newton.utils.SimRendererOpenGL
+ViewerNull = _CreateViewer(newton.viewer.ViewerNull, headless=True)
+newton.viewer.ViewerNull = _CreateViewer(newton.viewer.ViewerNull)

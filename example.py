@@ -25,7 +25,7 @@ builder.add_shape_plane(
 
 builder.add_shape_box(
     body=builder.add_body(),
-    xform=(0.0, 0.0, 4.5, 0.0, 0.0, 0.0, 1.0),
+    xform=([0.0, 0.0, 4.5], [0.0, 0.0, 0.0, 1.0]),
     hx=0.5,
     hy=0.2,
     hz=0.1,
@@ -35,7 +35,7 @@ builder.add_shape_box(
 
 builder.add_shape_sphere(
     body=builder.add_body(),
-    xform=(-1.0, 3.0, 2.0, 0.0, 0.0, 0.0, 1.0),
+    xform=([-1.0, 3.0, 2.0], [0.0, 0.0, 0.0, 1.0]),
     radius=1.0,
     cfg=cfg,
     key='shape_sphere',
@@ -43,10 +43,9 @@ builder.add_shape_sphere(
 
 builder.add_shape_capsule(
     body=builder.add_body(),
-    xform=(-1.0, -3.0, 2.0, 0.0, 0.0, 0.0, 1.0),
+    xform=([-1.0, -3.0, 2.0], [0.0, 0.0, 0.0, 1.0]),
     radius=1.0,
     half_height=0.5,
-    axis=1,
     cfg=cfg,
     key='shape_capsule',
 )
@@ -54,7 +53,7 @@ builder.add_shape_capsule(
 mesh = trimesh.creation.torus(1.0, 0.5)
 builder.add_shape_mesh(
     body=builder.add_body(),
-    xform=(0, -3, 5, 0, 0, 0, 1),
+    xform=([0, -3, 5], [0, 0, 0, 1]),
     mesh=newton.Mesh(mesh.vertices, mesh.faces.flatten()),
     cfg=cfg,
     key='shape_mesh',
@@ -134,15 +133,17 @@ builder.add_particle_grid(
 builder.color()
 model = builder.finalize()
 
-rigid_solver = newton.solvers.SemiImplicitSolver(model)
+rigid_solver = newton.solvers.SolverSemiImplicit(model)
 
 state_0 = model.state()
 state_1 = model.state()
 control = model.control()
 
-import newton.utils
-renderer = newton.utils.SimRendererOpenGL(model)
-# renderer = newtonclips.SimRendererOpenGL(model)
+import newton.viewer
+renderer = newton.viewer.ViewerGL()
+# renderer = newtonclips.ViewerUE()
+renderer.set_model(model)
+renderer.show_particles = True
 
 fps = 60
 frame_dt = 1.0 / fps
@@ -163,9 +164,9 @@ for _ in range(num_frames := 500):
     sim_time += frame_dt
 
     renderer.begin_frame(sim_time)
-    renderer.render(state_0)
+    renderer.log_state(state_0)
     renderer.end_frame()
 
-renderer.save()
+# renderer.save()
 
 # newtonclips.save_record(fps=fps)
